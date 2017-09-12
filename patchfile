@@ -1,0 +1,210 @@
+diff --git a/Makefile b/Makefile
+index 283c623..8fff07d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ VERSION = 4
+ PATCHLEVEL = 12
+-SUBLEVEL = 0
++SUBLEVEL = 101
+ EXTRAVERSION =
+ NAME = Fearless Coyote
+ 
+@@ -939,6 +939,7 @@ endif
+ 
+ ifeq ($(KBUILD_EXTMOD),)
+ core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
++core-y		+= my_syscall/
+ 
+ vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, $(init-y) $(init-m) \
+ 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+diff --git a/arch/x86/entry/common.c b/arch/x86/entry/common.c
+index cdefcfd..6921cab 100644
+--- a/arch/x86/entry/common.c
++++ b/arch/x86/entry/common.c
+@@ -418,3 +418,5 @@ __visible long do_fast_syscall_32(struct pt_regs *regs)
+ #endif
+ }
+ #endif
++
++
+diff --git a/arch/x86/entry/syscalls/syscall_64.tbl b/arch/x86/entry/syscalls/syscall_64.tbl
+index 5aef183..d3653ff 100644
+--- a/arch/x86/entry/syscalls/syscall_64.tbl
++++ b/arch/x86/entry/syscalls/syscall_64.tbl
+@@ -339,6 +339,8 @@
+ 330	common	pkey_alloc		sys_pkey_alloc
+ 331	common	pkey_free		sys_pkey_free
+ 332	common	statx			sys_statx
++333	common	my_syscall		sys_my_syscall
++334	common 	my_syscall2		sys_my_syscall2
+ 
+ #
+ # x32-specific system call numbers start at 512 to avoid cache impact
+diff --git a/include/linux/syscalls.h b/include/linux/syscalls.h
+index 980c3c9..409db3f 100644
+--- a/include/linux/syscalls.h
++++ b/include/linux/syscalls.h
+@@ -906,4 +906,6 @@ asmlinkage long sys_pkey_free(int pkey);
+ asmlinkage long sys_statx(int dfd, const char __user *path, unsigned flags,
+ 			  unsigned mask, struct statx __user *buffer);
+ 
++asmlinkage long my_syscall(int a, int b);
++asmlinkage long my_syscall2(char __user*);
+ #endif
+diff --git a/init/main.c b/init/main.c
+index f866510..3ff3124 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -489,6 +489,8 @@ asmlinkage __visible void __init start_kernel(void)
+ {
+ 	char *command_line;
+ 	char *after_dashes;
++	
++	printk("Hello World!\n");
+ 
+ 	set_task_stack_end_magic(&init_task);
+ 	smp_setup_processor_id();
+diff --git a/my_syscall/Makefile b/my_syscall/Makefile
+new file mode 100644
+index 0000000..8a152ce
+--- /dev/null
++++ b/my_syscall/Makefile
+@@ -0,0 +1,2 @@
++
++obj-y += my_func.o
+diff --git a/my_syscall/my_func.c b/my_syscall/my_func.c
+new file mode 100644
+index 0000000..428fb46
+--- /dev/null
++++ b/my_syscall/my_func.c
+@@ -0,0 +1,129 @@
++#include <linux/export.h>
++#include <linux/mm.h>
++#include <linux/utsname.h>
++#include <linux/mman.h>
++#include <linux/reboot.h>
++#include <linux/prctl.h>
++#include <linux/highuid.h>
++#include <linux/fs.h>
++#include <linux/kmod.h>
++#include <linux/perf_event.h>
++#include <linux/resource.h>
++#include <linux/kernel.h>
++#include <linux/workqueue.h>
++#include <linux/capability.h>
++#include <linux/device.h>
++#include <linux/key.h>
++#include <linux/times.h>
++#include <linux/posix-timers.h>
++#include <linux/security.h>
++#include <linux/dcookies.h>
++#include <linux/suspend.h>
++#include <linux/tty.h>
++#include <linux/signal.h>
++#include <linux/cn_proc.h>
++#include <linux/getcpu.h>
++#include <linux/task_io_accounting_ops.h>
++#include <linux/seccomp.h>
++#include <linux/cpu.h>
++#include <linux/personality.h>
++#include <linux/ptrace.h>
++#include <linux/fs_struct.h>
++#include <linux/file.h>
++#include <linux/mount.h>
++#include <linux/gfp.h>
++#include <linux/syscore_ops.h>
++#include <linux/version.h>
++#include <linux/ctype.h>
++
++#include <linux/compat.h>
++#include <linux/syscalls.h>
++#include <linux/kprobes.h>
++#include <linux/user_namespace.h>
++#include <linux/binfmts.h>
++
++#include <linux/sched.h>
++#include <linux/sched/autogroup.h>
++#include <linux/sched/loadavg.h>
++#include <linux/sched/stat.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/coredump.h>
++#include <linux/sched/task.h>
++#include <linux/sched/cputime.h>
++#include <linux/rcupdate.h>
++#include <linux/uidgid.h>
++#include <linux/cred.h>
++
++#include <linux/kmsg_dump.h>
++/* Move somewhere else to avoid recompiling? */
++#include <generated/utsrelease.h>
++
++#include <linux/uaccess.h>
++#include <asm/io.h>
++#include <asm/unistd.h>
++
++SYSCALL_DEFINE2(my_syscall, int, a, int, b)
++{
++	printk("my_syscall\n");
++	printk("%d\n", a+b);
++	return a+b;
++}
++
++
++#define k_buffer_len	128
++
++SYSCALL_DEFINE1(my_syscall2, char __user *, user_buffer)
++{
++
++	char k_buffer[k_buffer_len];
++	unsigned long substitutions = 0;
++	unsigned long i = 0;
++	long error_val = 0;
++
++	printk("my_syscall2\n");
++	
++	//if user_buffer is bad, get out of here
++	error_val = copy_from_user(k_buffer, user_buffer, k_buffer_len);
++	if(unlikely( error_val != 0 ))
++	{
++		printk("failed to copy from user, error_val = %ld\n", error_val);
++		return -1;
++	}
++
++	for(i = 0; i < k_buffer_len; ++i)
++	{
++		//exit loop at the end of the string
++		if(unlikely( k_buffer[i] == '\0')) break;
++		else if(k_buffer[i] == 'o')
++		{
++			k_buffer[i] = '0';
++			++substitutions;
++			printk("substitution made; %lu so far\n", substitutions);
++		}
++	}
++
++	//reached the end of the buffer without finding a null-terminator,
++	//	which means the input string was longer than 128 characters
++	if(unlikely( i == 128 ))
++	{
++		printk("input string was longer than 128 bytes\n");
++		return -1;	
++	}
++
++	k_buffer[i] = '\0';
++	printk("substitutions successful, result = %s\n", k_buffer);
++	printk("total substitutions = %lu\n", substitutions);
++
++	//error out if we fail to copy memory back
++	error_val = copy_to_user(user_buffer, k_buffer, i+1);
++	if(unlikely( error_val != 0 ))
++	{
++		printk("failed to copy to user, error_val = %ld\n", error_val);
++		return -1;
++	}
++	else 
++	{
++		printk("success");	
++		return substitutions;
++	}
++}
