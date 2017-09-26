@@ -247,7 +247,7 @@ static int p2_hashtable_fn(int* buf, int num_ints)
 	struct myhashstruct* hptr = NULL;
 	//struct hlist_node* nodeptr = NULL;
 	DEFINE_HASHTABLE(htable, 3);
-	//hash_init(htable);
+	hash_init(htable);
 	
 
 	//using data as the hash key
@@ -258,7 +258,7 @@ static int p2_hashtable_fn(int* buf, int num_ints)
 	{
 		hptr = kcalloc(1, sizeof(struct myhashstruct), GFP_KERNEL);
 		hptr->data = buf[i];
-		hash_add(htable, hptr->myhashlist.next, hptr->data);
+		hash_add(htable, &hptr->myhashlist, buf[i]);
 	}
 
 	//i = 0;
@@ -384,32 +384,39 @@ static int __init p2_init(void)
 	int pos = 0;
 	int i = 0;	
 
+	//debug logging
+	printk(KERN_INFO "Module loaded: 'p2' \n");
+	printk("Argument int_str = %s\n", int_str);
+
 	buf = (int*) kcalloc((count_spaces(str)+1), sizeof(int), GFP_KERNEL);
 
 	while(str[0] != '\0')
 	{
 		buf[i] = p2_atoi(str, &pos);
-		if(unlikely(buf[i] == -1))
+		if(unlikely(buf[i] < 0))
 		{
 			//handle error
-			return -1;
+			printk("int_str contains non-digit characters. Aborting.\n");
+			goto p2_init_cleanup;
+		}
+		else if(unlikely(buf[i] > 1000))
+		{
+			printk("integer '%d' is out of range. Aborting.\n", buf[i]);
+			goto p2_init_cleanup;
 		}
 		str += pos;
 		++i;
 	}
 
-	//debug logging
-	printk(KERN_INFO "Module loaded: 'p2' \n");
-	printk("Argument int_str = %s\n", int_str);
-
 	//data structure manipulation
-	//p2_linked_list_fn(buf, i);
-	//p2_rbtree_fn(buf, i);
-	//p2_hashtable_fn(buf, i);
-	//p2_radix_tree_fn(buf, i);
-	//p2_bitmap_fn(buf, i);
+	p2_linked_list_fn(buf, i);
+	p2_rbtree_fn(buf, i);
 	p2_hashtable_fn(buf, i);
+	p2_radix_tree_fn(buf, i);
+	p2_bitmap_fn(buf, i);
 
+	p2_init_cleanup:
+	printk("Module finished working: 'p2'. Use the command 'sudo rmmod p2' to unload the module. \n");
 	kfree(buf);
 	return 0;	
 }
@@ -422,6 +429,6 @@ static void __exit p2_exit(void)
 module_init(p2_init);
 module_exit(p2_exit);
 
-MODULE_LICENSE("None");
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Michael Monger <mpm8128@vt.edu>");
 MODULE_DESCRIPTION("LKP Project 2 kernel module");
