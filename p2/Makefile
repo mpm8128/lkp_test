@@ -2,8 +2,11 @@
 obj-m := p2.o
 
 CONFIG_MODULE_SIG=n
-KDIR := ~/linux
-#KDIR := /lib/modules/$(shell uname -r)/build
+
+#this should be the path to your kernel source directory
+#KDIR := ~/linux
+KDIR := /lib/modules/$(shell uname -r)/build
+
 PWD := $(shell pwd)
 
 all: p2.c

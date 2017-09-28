@@ -236,6 +236,9 @@ static int p2_rbtree_fn(int* buf, int num_ints)
 /*	hash table stuff	*/
 /**/
 
+
+static DEFINE_HASHTABLE(htable, 14);
+
 static int p2_hashtable_fn(int* buf, int num_ints)
 {
 	struct myhashstruct
@@ -246,7 +249,6 @@ static int p2_hashtable_fn(int* buf, int num_ints)
 	int i = 0;	
 	struct myhashstruct* hptr = NULL;
 	//struct hlist_node* nodeptr = NULL;
-	DEFINE_HASHTABLE(htable, 3);
 	hash_init(htable);
 	
 
